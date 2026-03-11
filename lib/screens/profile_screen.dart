@@ -48,6 +48,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+void showEditPostDialog(String postId, String oldTitle, String oldDesc) {
+
+  final titleController = TextEditingController(text: oldTitle);
+  final descController = TextEditingController(text: oldDesc);
+
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Edit Post"),
+
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+
+          TextField(
+            controller: titleController,
+            decoration: const InputDecoration(labelText: "Title"),
+          ),
+
+          TextField(
+            controller: descController,
+            decoration: const InputDecoration(labelText: "Description"),
+          ),
+
+        ],
+      ),
+
+      actions: [
+
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+
+        ElevatedButton(
+          onPressed: () async {
+
+            await FirebaseFirestore.instance
+                .collection("posts")
+                .doc(postId)
+                .update({
+              "title": titleController.text.trim(),
+              "desc": descController.text.trim(),
+            });
+
+            Navigator.pop(context);
+
+          },
+          child: const Text("Update"),
+        ),
+
+      ],
+    ),
+  );
+}
+
   File? selectedImage;
   String profileImageUrl = "";
 
@@ -61,6 +117,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool isLoading = true;
   String myUid = "";
   bool isOwner = false;
+
+  int postCount = 0;
+  int notesCount = 0;
 
   Future<void> fetchUserData() async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -77,6 +136,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (doc.exists) {
       final data = doc.data()!;
+
+      postCount = await getPostCount();
+      notesCount = await getNotesCount();
+
       setState(() {
         name = data["name"] ?? "";
         university = data["university"] ?? "";
@@ -196,6 +259,28 @@ Future<void> uploadToCloudinary() async {
 
   return total / snapshot.docs.length;
 }
+//post count function
+Future<int> getPostCount() async {
+
+  final snapshot = await FirebaseFirestore.instance
+      .collection("posts")
+      .where("uid", isEqualTo: myUid)
+      .get();
+
+  return snapshot.docs.length;
+
+}
+// Notes count function
+Future<int> getNotesCount() async {
+
+  final snapshot = await FirebaseFirestore.instance
+      .collection("notes")
+      .where("userId", isEqualTo: myUid)
+      .get();
+
+  return snapshot.docs.length;
+
+}
 
   @override
   Widget build(BuildContext context) {
@@ -220,8 +305,11 @@ Future<void> uploadToCloudinary() async {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        GestureDetector(
+                        Padding(
+                          padding: EdgeInsets.only(top: isOwner ? 47 : 0),
+                         child:GestureDetector(
                             onTap: isOwner ? pickImage : null,
                             child: CircleAvatar(
                               radius: 38,
@@ -232,6 +320,7 @@ Future<void> uploadToCloudinary() async {
                               child: profileImageUrl.isEmpty
                                   ? const Icon(Icons.person, size: 40)
                                   : null,
+                            ),
                             ),
                           ),
                         const SizedBox(width: 14),
@@ -269,6 +358,7 @@ Future<void> uploadToCloudinary() async {
                                         context: context,
                                         builder: (_) => AddPostDialog(),
                                       );
+                                      fetchUserData();
                                     },
                                   ),
                                   IconButton(
@@ -281,6 +371,7 @@ Future<void> uploadToCloudinary() async {
                                           builder: (_) => const UploadNoteScreen(),
                                         ),
                                       );
+                                      fetchUserData();
                                     },
                                     ),
                                   IconButton(
@@ -322,53 +413,77 @@ Future<void> uploadToCloudinary() async {
                                         ],
                                       ),
 
-                                      if (rating > 0)
-                                        Text(
-                                          "⭐ ${rating.toStringAsFixed(1)} Rating",
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.black,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
+                                      const SizedBox(height: 10),
 
-                                      if (badge.isNotEmpty && isOwner)
-                                        GestureDetector(
-                                          onTap: () {
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                        children: [
 
-                                            String badgeName = "Bronze";
-
-                                            if (badge == "🥇") {
-                                              badgeName = "Gold";
-                                            } else if (badge == "🥈") {
-                                              badgeName = "Silver";
-                                            }
-
-                                            generateCertificate(name, badgeName);
-                                          },
-                                          child: Row(
-                                            children: const [
-
-                                              Icon(
-                                                Icons.workspace_premium,
-                                                color: Colors.orange,
-                                                size: 22,
-                                              ),
-
-                                              SizedBox(width: 4),
-
+                                          Column(
+                                            children: [
                                               Text(
-                                                "Certificate",
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Colors.black,
+                                                postCount.toString(),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
                                                 ),
                                               ),
+                                              const Text("Posts"),
                                             ],
                                           ),
-                                        ),
+
+                                          Column(
+                                            children: [
+                                              Text(
+                                                notesCount.toString(),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              const Text("Notes"),
+                                            ],
+                                          ),
+
+                                       if (rating > 0)
+                                          Column(
+                                            children: [
+                                              Text(
+                                                "⭐ ${rating.toStringAsFixed(1)}",
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              const Text("Rating"),
+                                            ],
+                                          ),
+
+                                          if (badge.isNotEmpty && isOwner)
+                                            GestureDetector(
+                                              onTap: () {
+
+                                                String badgeName = "Bronze";
+
+                                                if (badge == "🥇") {
+                                                  badgeName = "Gold";
+                                                } else if (badge == "🥈") {
+                                                  badgeName = "Silver";
+                                                }
+
+                                                generateCertificate(name, badgeName);
+                                              },
+                                              child: Column(
+                                                children: const [
+                                                  Icon(Icons.workspace_premium, color: Colors.orange),
+                                                  Text("Certificate"),
+                                                ],
+                                              ),
+                                            ),
+
+                                        ],
+                                      ),
+                                     
                                     ],
                                   );
                                 },
@@ -544,6 +659,15 @@ Future<void> uploadToCloudinary() async {
                                     if (isOwner)
                                       PopupMenuButton<String>(
                                         onSelected: (value) async {
+                                          if (value == "edit") {
+
+                                            showEditPostDialog(
+                                              doc.id,
+                                              post["title"] ?? "",
+                                              post["desc"] ?? "",
+                                            );
+
+                                          }
 
                                           if (value == "delete") {
 
@@ -574,6 +698,7 @@ Future<void> uploadToCloudinary() async {
                                                           .delete();
 
                                                       Navigator.pop(context);
+                                                      fetchUserData();
                                                     },
                                                     child: const Text(
                                                       "Delete",
@@ -590,6 +715,11 @@ Future<void> uploadToCloudinary() async {
                                         },
 
                                         itemBuilder: (context) => const [
+
+                                          PopupMenuItem(
+                                            value: "edit",
+                                            child: Text("Edit"),
+                                          ),
                                           PopupMenuItem(
                                             value: "delete",
                                             child: Text("Delete"),

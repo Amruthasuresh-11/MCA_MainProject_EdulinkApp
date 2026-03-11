@@ -14,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Controllers for TextFields
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  bool isPasswordVisible = false;
 
   // ✅ Form key for validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -219,10 +220,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ✅ Password Field
                         TextFormField(
                           controller: passwordController,
-                          obscureText: true,
+                          obscureText: !isPasswordVisible,
                           decoration: InputDecoration(
                             labelText: "Password",
                             prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                isPasswordVisible
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  isPasswordVisible = !isPasswordVisible;
+                                });
+                              },
+                            ),
                             filled: true,
                             fillColor: Colors.grey.shade100,
                             border: OutlineInputBorder(

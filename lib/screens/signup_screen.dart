@@ -3,8 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 
-
-
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -16,6 +14,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  bool isPasswordVisible = false;
 
   // ✅ Form key for validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -208,10 +207,22 @@ class _SignupScreenState extends State<SignupScreen> {
                         // ✅ Password
                         TextFormField(
                           controller: passwordController,
-                          obscureText: true,
+                          obscureText: !isPasswordVisible,
                           decoration: InputDecoration(
                             labelText: "Password",
                             prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                isPasswordVisible
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  isPasswordVisible = !isPasswordVisible;
+                                });
+                              },
+                            ),
                             filled: true,
                             fillColor: Colors.grey.shade100,
                             border: OutlineInputBorder(

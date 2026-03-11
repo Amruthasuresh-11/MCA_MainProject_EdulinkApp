@@ -37,6 +37,78 @@ class AdminComplaintsScreen extends StatelessWidget {
       },
     );
   }
+  Future<void> deletePost(BuildContext context, String postId) async {
+
+  final postRef =
+      FirebaseFirestore.instance.collection("posts").doc(postId);
+
+  final doc = await postRef.get();
+
+  if (!doc.exists) {
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Post already deleted")),
+    );
+
+    return;
+  }
+   ///  Delete likes subcollection
+  final likesSnapshot = await postRef.collection("likes").get();
+
+  for (var likeDoc in likesSnapshot.docs) {
+    await likeDoc.reference.delete();
+  }
+
+  ///  Delete the post
+  await postRef.delete();
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Post deleted successfully")),
+  );
+}
+
+Future<void> blockUser(BuildContext context, String uid) async {
+  await FirebaseFirestore.instance
+      .collection("users")
+      .doc(uid)
+      .update({"isBlocked": true});
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("User blocked successfully")),
+  );
+}
+
+void showConfirmDialog(
+  BuildContext context,
+  String title,
+  String message,
+  VoidCallback onConfirm,
+) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: themeBlue),
+          onPressed: () {
+            Navigator.pop(context);
+            onConfirm();
+          },
+          child: const Text(
+            "Confirm",
+            style: TextStyle(color: Colors.white),
+          ),
+        )
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +177,90 @@ class AdminComplaintsScreen extends StatelessWidget {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
+                  ),
+
+                  trailing: FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance
+                        .collection("users")
+                        .doc(reportedUserId)
+                        .get(),
+                    builder: (context, userSnap) {
+
+                      bool isBlocked = false;
+
+                      if (userSnap.hasData && userSnap.data!.exists) {
+                        final userData = userSnap.data!.data() as Map<String, dynamic>;
+                        isBlocked = userData["isBlocked"] ?? false;
+                      }
+
+                      return PopupMenuButton<String>(
+
+                        onSelected: (value) {
+
+                          if (value == "deletePost" && postId != null) {
+                            showConfirmDialog(
+                              context,
+                              "Delete Post?",
+                              "Are you sure you want to delete this reported post?",
+                              () => deletePost(context, postId),
+                            );
+                          }
+
+                          if (value == "blockUser") {
+                            showConfirmDialog(
+                              context,
+                              "Block User?",
+                              "This user will not be able to login.",
+                              () => blockUser(context, reportedUserId),
+                            );
+                          }
+
+                          if (value == "unblockUser") {
+                            showConfirmDialog(
+                              context,
+                              "Unblock User?",
+                              "This user will be allowed to login again.",
+                              () async {
+                                await FirebaseFirestore.instance
+                                    .collection("users")
+                                    .doc(reportedUserId)
+                                    .update({"isBlocked": false});
+                              },
+                            );
+                          }
+
+                        },
+
+                        itemBuilder: (context) {
+
+                          if (type == "post") {
+
+                            return [
+
+                              const PopupMenuItem(
+                                value: "deletePost",
+                                child: Text("Delete Post"),
+                              ),
+
+                              PopupMenuItem(
+                                value: isBlocked ? "unblockUser" : "blockUser",
+                                child: Text(isBlocked ? "Unblock User" : "Block User"),
+                              ),
+
+                            ];
+                          }
+
+                          return [
+
+                            PopupMenuItem(
+                              value: isBlocked ? "unblockUser" : "blockUser",
+                              child: Text(isBlocked ? "Unblock User" : "Block User"),
+                            ),
+
+                          ];
+                        },
+                      );
+                    },
                   ),
 
                   subtitle: Column(

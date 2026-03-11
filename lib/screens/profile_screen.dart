@@ -692,12 +692,38 @@ Future<int> getNotesCount() async {
                                                     ),
                                                     onPressed: () async {
 
-                                                      await FirebaseFirestore.instance
+                                                      final postRef = FirebaseFirestore.instance
                                                           .collection("posts")
-                                                          .doc(doc.id)
-                                                          .delete();
+                                                          .doc(doc.id);
+
+                                                      final docSnap = await postRef.get();
+
+                                                      if (!docSnap.exists) {
+                                                        Navigator.pop(context);
+
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text("Post already deleted")),
+                                                        );
+
+                                                        return;
+                                                      }
+
+                                                      /// delete likes first
+                                                      final likesSnapshot = await postRef.collection("likes").get();
+
+                                                      for (var likeDoc in likesSnapshot.docs) {
+                                                        await likeDoc.reference.delete();
+                                                      }
+
+                                                      /// delete the post
+                                                      await postRef.delete();
 
                                                       Navigator.pop(context);
+
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text("Post deleted successfully")),
+                                                      );
+
                                                       fetchUserData();
                                                     },
                                                     child: const Text(

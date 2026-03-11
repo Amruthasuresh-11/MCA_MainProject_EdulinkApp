@@ -87,6 +87,116 @@ class _MentorsScreenState extends State<MentorsScreen> {
     return total / snapshot.docs.length;
   }
 
+  Future<void> showTopMentorsDialog() async {
+
+  final usersSnapshot =
+      await FirebaseFirestore.instance.collection("users").get();
+
+  List<Map<String, dynamic>> gold = [];
+  List<Map<String, dynamic>> silver = [];
+  List<Map<String, dynamic>> bronze = [];
+
+  for (var doc in usersSnapshot.docs) {
+
+    final rating = await getAverageRating(doc.id);
+    final data = doc.data();
+
+    final mentor = {
+      "name": data["name"] ?? "Mentor",
+      "image": data["profileImageUrl"] ?? "",
+      "rating": rating
+    };
+
+    if (rating >= 4.5) {
+      gold.add(mentor);
+    } 
+    else if (rating >= 3.5) {
+      silver.add(mentor);
+    } 
+    else if (rating >= 2.5) {
+      bronze.add(mentor);
+    }
+  }
+
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("🏆 Top Mentors"),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              buildMentorSection("🥇 Gold Mentors", gold),
+              buildMentorSection("🥈 Silver Mentors", silver),
+              buildMentorSection("🥉 Bronze Mentors", bronze),
+
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget buildMentorSection(String title, List mentors) {
+
+  if (mentors.isEmpty) return const SizedBox();
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+
+      const SizedBox(height: 10),
+
+      Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+
+      const SizedBox(height: 6),
+
+      ...mentors.map((m) {
+
+        return ListTile(
+
+          leading: CircleAvatar(
+            backgroundImage: m["image"] != ""
+                ? NetworkImage(m["image"])
+                : null,
+            child: m["image"] == ""
+                ? const Icon(Icons.person)
+                : null,
+          ),
+
+          title: Text(m["name"]),
+
+          subtitle: Text("⭐ ${m["rating"].toStringAsFixed(1)}"),
+
+        );
+
+      }).toList(),
+
+    ],
+  );
+}
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -109,19 +219,34 @@ class _MentorsScreenState extends State<MentorsScreen> {
 
         Padding(
           padding: const EdgeInsets.all(12),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: "Search users by name, skill, course or university",
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: "Search users by name, skill, course or university",
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      searchText = value.toLowerCase();
+                    });
+                  },
+                ),
               ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                searchText = value.toLowerCase();
-              });
-            },
+
+              const SizedBox(width: 8),
+
+              IconButton(
+                icon: const Icon(Icons.emoji_events, color: Colors.orange,size: 38,),
+                onPressed: showTopMentorsDialog,
+              ),
+
+            ],
           ),
         ),
     if (searchText.isNotEmpty)
@@ -338,7 +463,7 @@ class _MentorsScreenState extends State<MentorsScreen> {
       },
      ),
     ),
-    ],
+    ],    
     );
   }
 }

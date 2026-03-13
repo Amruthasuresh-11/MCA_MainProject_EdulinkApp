@@ -3,7 +3,7 @@ import 'feed_screen.dart';
 import 'mentors_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
-
+import 'community_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   FeedScreen(),
   MentorsScreen(),
   ChatScreen(),
+  CommunityListScreen(),
   ProfileScreen(),
 ];
 
@@ -71,6 +72,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.chat_bubble_rounded),
             label: "Chat",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.groups_rounded),
+            label: "Community",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_rounded),

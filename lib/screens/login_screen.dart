@@ -55,6 +55,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (isBlocked == true) {
       await FirebaseAuth.instance.signOut();
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Your account has been blocked by Admin 🚫"),
@@ -65,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     /// ✅ NORMAL LOGIN
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Login Successful ✅")),
     );
@@ -88,11 +91,14 @@ class _LoginScreenState extends State<LoginScreen> {
       msg = "Invalid email address ❌";
     }
 
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
 
   } catch (e) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Error: $e")),
     );

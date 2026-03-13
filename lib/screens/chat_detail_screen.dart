@@ -286,7 +286,7 @@ void showReportDialog() {
                   .collection("chats")
                   .doc(chatId)
                   .collection("messages")
-                  .orderBy("createdAt")
+                  .orderBy("createdAt",descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
@@ -296,6 +296,7 @@ void showReportDialog() {
                 final messages = snapshot.data!.docs;
 
                 return ListView.builder(
+                  reverse: true,
                   padding: const EdgeInsets.all(10),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
@@ -306,9 +307,13 @@ void showReportDialog() {
                     return Align(
                       alignment:
                           isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.7,
+                      ),
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: isMe
                               ? const Color(0xFF4A00E0)
@@ -320,6 +325,7 @@ void showReportDialog() {
                           style: TextStyle(
                               color: isMe ? Colors.white : Colors.black),
                         ),
+                      ),
                       ),
                     );
                   },

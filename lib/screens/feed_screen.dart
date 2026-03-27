@@ -37,6 +37,17 @@ class _FeedScreenState extends State<FeedScreen> {
     });
   }
 }
+Future<List<String>> getFollowingIds() async {
+  final myUid = FirebaseAuth.instance.currentUser!.uid;
+
+  final snapshot = await FirebaseFirestore.instance
+      .collection("users")
+      .doc(myUid)
+      .collection("following")
+      .get();
+
+  return snapshot.docs.map((doc) => doc.id).toList();
+}
 
   // 🔹 Time ago function
   String timeAgo(Timestamp timestamp) {
@@ -127,11 +138,36 @@ class _FeedScreenState extends State<FeedScreen> {
           return const Center(child: Text("No posts yet"));
         }
 
+      return FutureBuilder<List<String>>(
+      future: getFollowingIds(),
+      builder: (context, followSnapshot) {
+
+        if (!followSnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final followingIds = followSnapshot.data!;
+
+        //  Separate posts
+        final followedPosts = posts.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return followingIds.contains(data["uid"]);
+        }).toList();
+
+        final otherPosts = posts.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return !followingIds.contains(data["uid"]);
+        }).toList();
+
+        // Merge
+        final sortedPosts = [...followedPosts, ...otherPosts];
+
         return ListView.builder(
           padding: const EdgeInsets.all(14),
-          itemCount: posts.length,
+          itemCount: sortedPosts.length,
           itemBuilder: (context, index) {
-            final doc = posts[index];
+
+            final doc = sortedPosts[index];
             final post = doc.data() as Map<String, dynamic>;
             final uid = post["uid"];
             final myUid = FirebaseAuth.instance.currentUser!.uid;
@@ -160,7 +196,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // 🔹 Header row (UPDATED)
+                  //  Header row (UPDATED)
                   Row(
                     children: [
                       FutureBuilder<DocumentSnapshot>(
@@ -245,7 +281,8 @@ class _FeedScreenState extends State<FeedScreen> {
                               fontSize: 11, color: Colors.black),
                         ),
 
-                      // ✅ 3 DOT MENU
+                      //  3 DOT MENU
+                    if (uid != myUid)
                       PopupMenuButton<String>(
                         onSelected: (value) {
                           if (value == "report") {
@@ -374,6 +411,9 @@ class _FeedScreenState extends State<FeedScreen> {
             );
           },
         );
+      
+      },
+      );
       },
     );
   }

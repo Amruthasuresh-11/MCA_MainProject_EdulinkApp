@@ -7,6 +7,7 @@ import 'notes_screen.dart';
 import 'upload_note_screen.dart';
 import 'chat_detail_screen.dart';
 import 'certificate_generator.dart';
+import 'follow_list_screen.dart';
 
 import 'dart:io';
 import 'dart:convert';
@@ -117,9 +118,13 @@ void showEditPostDialog(String postId, String oldTitle, String oldDesc) {
   bool isLoading = true;
   String myUid = "";
   bool isOwner = false;
+  bool isFollowing = false;
 
   int postCount = 0;
   int notesCount = 0;
+  double rating = 0;
+  String badge = "";
+  int ratingCount = 0;
 
   Future<void> fetchUserData() async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -139,7 +144,10 @@ void showEditPostDialog(String postId, String oldTitle, String oldDesc) {
 
       postCount = await getPostCount();
       notesCount = await getNotesCount();
-
+      final ratingData = await getRatingData();
+      rating = ratingData["avg"];
+      ratingCount = ratingData["count"];
+      badge = getBadge(rating);
       setState(() {
         name = data["name"] ?? "";
         university = data["university"] ?? "";
@@ -150,10 +158,68 @@ void showEditPostDialog(String postId, String oldTitle, String oldDesc) {
         profileImageUrl = data["profileImageUrl"] ?? "";
         isLoading = false;
       });
+      await checkFollowStatus();
     } else {
       setState(() => isLoading = false);
     }
   }
+  Future<void> checkFollowStatus() async {
+
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null || isOwner) return;
+
+  final doc = await FirebaseFirestore.instance
+      .collection("users")
+      .doc(myUid)
+      .collection("followers")
+      .doc(currentUser.uid)
+      .get();
+
+  if (!mounted) return;
+
+  setState(() {
+    isFollowing = doc.exists;
+  });
+}
+Future<void> toggleFollow() async {
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) return;
+
+  final currentUid = currentUser.uid;
+
+  final followingRef = FirebaseFirestore.instance
+      .collection("users")
+      .doc(currentUid)
+      .collection("following")
+      .doc(myUid);
+
+  final followerRef = FirebaseFirestore.instance
+      .collection("users")
+      .doc(myUid)
+      .collection("followers")
+      .doc(currentUid);
+
+  if (isFollowing) {
+    //  UNFOLLOW
+    await followingRef.delete();
+    await followerRef.delete();
+  } else {
+    //  FOLLOW
+    await followingRef.set({
+      "createdAt": FieldValue.serverTimestamp(),
+    });
+
+    await followerRef.set({
+      "createdAt": FieldValue.serverTimestamp(),
+    });
+  }
+
+  if (!mounted) return;
+
+  setState(() {
+    isFollowing = !isFollowing;
+  });
+}
 
   Future<void> pickImage() async {
   final picker = ImagePicker();
@@ -242,14 +308,17 @@ Future<void> uploadToCloudinary() async {
   return "";
   }
   //Average Rating
-  Future<double> getAverageRating() async {
+  Future<Map<String, dynamic>> getRatingData() async {
+
   final snapshot = await FirebaseFirestore.instance
       .collection("users")
       .doc(myUid)
       .collection("ratings")
       .get();
 
-  if (snapshot.docs.isEmpty) return 0;
+  if (snapshot.docs.isEmpty) {
+    return {"avg": 0.0, "count": 0};
+  }
 
   double total = 0;
 
@@ -257,7 +326,12 @@ Future<void> uploadToCloudinary() async {
     total += (doc["rating"] ?? 0);
   }
 
-  return total / snapshot.docs.length;
+  double avg = total / snapshot.docs.length;
+
+  return {
+    "avg": avg,
+    "count": snapshot.docs.length,
+  };
 }
 //post count function
 Future<int> getPostCount() async {
@@ -374,6 +448,19 @@ Future<int> getNotesCount() async {
                                       fetchUserData();
                                     },
                                     ),
+                                    
+                                  if (badge.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.workspace_premium, color: Colors.orange),
+                                    onPressed: () {
+                                      String badgeName = "Bronze";
+
+                                      if (badge == "🥇") badgeName = "Gold";
+                                      else if (badge == "🥈") badgeName = "Silver";
+
+                                      generateCertificate(name, badgeName);
+                                    },
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.logout,
                                         color: Colors.red),
@@ -382,14 +469,7 @@ Future<int> getNotesCount() async {
                                 ],
                               ),
                               
-                              FutureBuilder<double>(
-                                future: getAverageRating(),
-                                builder: (context, snapshot) {
-
-                                  final rating = snapshot.data ?? 0;
-                                  final badge = getBadge(rating);
-
-                                  return Column(
+                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
 
@@ -416,10 +496,10 @@ Future<int> getNotesCount() async {
                                       const SizedBox(height: 10),
 
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                         children: [
-
-                                          Column(
+                                          Flexible(
+                                            child: Column(
                                             children: [
                                               Text(
                                                 postCount.toString(),
@@ -428,11 +508,12 @@ Future<int> getNotesCount() async {
                                                   fontSize: 16,
                                                 ),
                                               ),
-                                              const Text("Posts"),
+                                              const Text("Posts",style: TextStyle(fontSize: 11,fontWeight: FontWeight.bold,),),
                                             ],
+                                            ),
                                           ),
-
-                                          Column(
+                                        Flexible(
+                                          child:Column(
                                             children: [
                                               Text(
                                                 notesCount.toString(),
@@ -441,53 +522,115 @@ Future<int> getNotesCount() async {
                                                   fontSize: 16,
                                                 ),
                                               ),
-                                              const Text("Notes"),
+                                              const Text("Notes",style: TextStyle(fontSize: 11,fontWeight: FontWeight.bold,),),
                                             ],
                                           ),
-
-                                       if (rating > 0)
-                                          Column(
-                                            children: [
-                                              Text(
-                                                "⭐ ${rating.toStringAsFixed(1)}",
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                              const Text("Rating"),
-                                            ],
                                           ),
-
-                                          if (badge.isNotEmpty && isOwner)
-                                            GestureDetector(
-                                              onTap: () {
-
-                                                String badgeName = "Bronze";
-
-                                                if (badge == "🥇") {
-                                                  badgeName = "Gold";
-                                                } else if (badge == "🥈") {
-                                                  badgeName = "Silver";
-                                                }
-
-                                                generateCertificate(name, badgeName);
-                                              },
-                                              child: Column(
-                                                children: const [
-                                                  Icon(Icons.workspace_premium, color: Colors.orange),
-                                                  Text("Certificate"),
-                                                ],
+                                    Flexible(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => FollowListScreen(
+                                                userId: myUid,
+                                                isFollowers: true,
                                               ),
                                             ),
+                                          );
+                                        },
+                                        child: Column(
+                                          children: [
+                                            StreamBuilder(
+                                              stream: FirebaseFirestore.instance
+                                                  .collection("users")
+                                                  .doc(myUid)
+                                                  .collection("followers")
+                                                  .snapshots(),
+                                              builder: (context, snapshot) {
+
+                                                int count = snapshot.data?.docs.length ?? 0;
+
+                                                return Text(
+                                                  count.toString(),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                            const Text("Followers",style: TextStyle(fontSize: 10,fontWeight: FontWeight.bold,),),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Flexible(
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => FollowListScreen(
+                                                  userId: myUid,
+                                                  isFollowers: false,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          child: Column(
+                                            children: [
+                                              StreamBuilder(
+                                                stream: FirebaseFirestore.instance
+                                                    .collection("users")
+                                                    .doc(myUid)
+                                                    .collection("following")
+                                                    .snapshots(),
+                                                builder: (context, snapshot) {
+
+                                                  int count = snapshot.data?.docs.length ?? 0;
+
+                                                  return Text(
+                                                    count.toString(),
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                              const Text("Following",style: TextStyle(fontSize: 10,fontWeight: FontWeight.bold,),),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                       if (rating > 0)
+                                       Flexible(
+                                        flex: 2, // 🔥 gives more space to rating
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              "⭐ ${rating.toStringAsFixed(1)} ($ratingCount)",
+                                              overflow: TextOverflow.visible,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            const Text(
+                                              "Rating",
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
 
                                         ],
                                       ),
                                      
                                     ],
-                                  );
-                                },
-                              ),
+                                   ),
+
                               Text("University : ${showValue(university)}"),
                               Text("College : ${showValue(college)}"),
                               Text("Course : ${showValue(course)}"),
@@ -517,7 +660,7 @@ Future<int> getNotesCount() async {
                                           ),
                                         );
                                     },
-                                    child: const Text(" View Notes",style: TextStyle(color: Colors.white,fontSize: 16,fontWeight: FontWeight.bold),),
+                                    child: const Text("Notes",style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),),
                                   ),
                                 ),
 
@@ -540,7 +683,51 @@ Future<int> getNotesCount() async {
                                       },
                                       child: const Text(
                                         "Message",
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                        style: TextStyle(color: Colors.white,fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: themeBlue,
+                                      ),
+                                      onPressed: () async {
+                                        if (isFollowing) {
+                                          //  Show confirmation dialog
+                                          final confirm = await showDialog<bool>(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text("Unfollow"),
+                                              content: const Text("Are you sure you want to unfollow?"),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(context, false),
+                                                  child: const Text("Cancel"),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(context, true),
+                                                  child: const Text("Unfollow"),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+
+                                          if (confirm == true) {
+                                            await toggleFollow();
+                                          }
+                                        } else {
+                                          //  Direct follow
+                                          await toggleFollow();
+                                        }
+                                      },
+                                      child: Text(
+                                        isFollowing ? "Following" : "Follow",
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15.2,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                   ),
@@ -883,6 +1070,7 @@ class _AddPostDialogState extends State<AddPostDialog> {
       await picker.pickImage(source: ImageSource.gallery);
 
   if (pickedFile != null) {
+    if (!mounted) return;
     setState(() {
       selectedImage = File(pickedFile.path);
     });
@@ -917,17 +1105,17 @@ class _AddPostDialogState extends State<AddPostDialog> {
 
       var responseData =
           json.decode(await response.stream.bytesToString());
-
+      if (!mounted) return;
       setState(() {
         imageUrl = responseData['secure_url'];
       });
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Image uploaded")),
       );
 
     } else {
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Image upload failed")),
       );
